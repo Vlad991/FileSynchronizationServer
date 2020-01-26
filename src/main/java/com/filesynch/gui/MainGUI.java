@@ -19,7 +19,8 @@ public class MainGUI extends JFrame {
         this.setBounds(200, 200, 600, 400);
         this.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 
-        server = new Server();
+        //server = new Server();
+        server = null;
 
         contentPane = new JPanel();
         contentPane.setBorder(new EmptyBorder(5, 5, 5, 5));
