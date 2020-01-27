@@ -1,37 +1,33 @@
 package com.filesynch.dto;
 
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+import org.hibernate.annotations.GenericGenerator;
+
+import javax.persistence.*;
 import java.io.Serializable;
 
+@Getter
+@Setter
+@NoArgsConstructor
+@Entity
+@Table(name = "client_list")
 public class ClientInfo implements Serializable {
+    @Id
+    @GeneratedValue(generator="increment")
+    @GenericGenerator(name="increment", strategy = "increment")
+    private Long id;
+    @Column(name = "name", unique = true)
+    private String login; // name to be logged in to server (login)
+    @Column(name = "ip_address")
     private String ipAddress;
-    private String name;
+    @Column(name = "pc_name")
+    private String pcName;
+    @Column(name = "pc_model")
+    private String pcModel;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status")
     private ClientStatus status;
-
-
-    public ClientInfo() {
-    }
-
-    public String getIpAddress() {
-        return ipAddress;
-    }
-
-    public void setIpAddress(String ipAddress) {
-        this.ipAddress = ipAddress;
-    }
-
-    public String getName() {
-        return name;
-    }
-
-    public void setName(String name) {
-        this.name = name;
-    }
-
-    public ClientStatus getStatus() {
-        return status;
-    }
-
-    public void setStatus(ClientStatus status) {
-        this.status = status;
-    }
+    static final long serialVersionUID = 42L;
 }
