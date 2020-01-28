@@ -1,10 +1,12 @@
-package com.filesynch.dto;
+package com.filesynch.entity;
 
+import com.filesynch.dto.FilePartStatus;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import javax.persistence.*;
+import java.io.Serializable;
 
 @Getter
 @Setter
@@ -22,8 +24,6 @@ public class FilePart {
     private FilePartStatus status;
     @Column(name = "is_first")
     private boolean isFirst;
-    private byte[] data;
-    private int length;
     @ManyToOne
     @JoinColumn(name = "client_id")
     private ClientInfo client;

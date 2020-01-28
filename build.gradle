@@ -1,3 +1,12 @@
+buildscript {
+    repositories {
+        jcenter()
+    }
+
+    dependencies {
+    }
+}
+
 plugins {
     id 'java'
 }
@@ -9,14 +18,22 @@ sourceCompatibility = 1.8
 
 repositories {
     mavenCentral()
+    maven{
+        url "http://mvnrepository.com/artifact/"
+    }
 }
 
 dependencies {
     testCompile group: 'junit', name: 'junit', version: '4.12'
-    compile group: 'org.hibernate', name: 'hibernate-core', version: '6.0.0.Alpha3'
+    compile 'org.hibernate:hibernate-gradle-plugin:5.3.6.Final'
+    compile 'org.hibernate:hibernate-core:5.3.6.Final'
+    compile 'org.hibernate:hibernate-entitymanager:5.3.6.Final'
+    compile 'org.hibernate:hibernate-hikaricp:5.3.6.Final'
+    compile 'org.hibernate:hibernate-ehcache:5.3.6.Final'
     compile group: 'org.springframework.data', name: 'spring-data-jpa', version: '2.2.4.RELEASE'
     compile group: 'org.projectlombok', name: 'lombok', version: '1.18.8'
     compile group: 'org.xerial', name: 'sqlite-jdbc', version: '3.30.1'
     compile group: 'com.github.gwenn', name: 'sqlite-dialect', version: '0.1.0'
-    compile group: 'org.slf4j', name: 'slf4j-api', version: '1.7.30'
+//    compile group: 'org.slf4j', name: 'slf4j-simple', version: '1.7.30'
+    compile group: 'org.slf4j', name: 'slf4j-nop', version: '1.7.30'
 }

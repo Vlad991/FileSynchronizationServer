@@ -1,5 +1,6 @@
-package com.filesynch.dto;
+package com.filesynch.entity;
 
+import com.filesynch.dto.ClientStatus;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -13,7 +14,7 @@ import java.io.Serializable;
 @NoArgsConstructor
 @Entity
 @Table(name = "client_list")
-public class ClientInfo implements Serializable {
+public class ClientInfo {
     @Id
     @GeneratedValue(generator="increment")
     @GenericGenerator(name="increment", strategy = "increment")
@@ -29,5 +30,4 @@ public class ClientInfo implements Serializable {
     @Enumerated(EnumType.STRING)
     @Column(name = "status")
     private ClientStatus status;
-    static final long serialVersionUID = 42L;
 }

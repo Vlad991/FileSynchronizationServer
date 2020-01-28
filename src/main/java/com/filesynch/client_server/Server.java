@@ -1,27 +1,36 @@
 package com.filesynch.client_server;
 
 import com.filesynch.configuration.DataConfig;
+import com.filesynch.converter.ClientInfoConverter;
+import com.filesynch.converter.FileInfoConverter;
+import com.filesynch.converter.FilePartConverter;
+import com.filesynch.converter.TextMessageConverter;
 import com.filesynch.dto.*;
+import com.filesynch.entity.ClientInfo;
+import com.filesynch.entity.FileInfo;
+import com.filesynch.entity.FilePart;
+import com.filesynch.entity.TextMessage;
 import com.filesynch.repository.ClientInfoRepository;
 import com.filesynch.repository.FileInfoRepository;
 import com.filesynch.repository.FilePartRepository;
 import com.filesynch.repository.TextMessageRepository;
 import lombok.Getter;
 import lombok.Setter;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
-import org.springframework.stereotype.Component;
 
 import java.io.*;
 import java.rmi.RemoteException;
 import java.rmi.server.UnicastRemoteObject;
 import java.util.HashMap;
 
-@Component
 public class Server extends UnicastRemoteObject implements ServerInt {
     @Getter
     @Setter
     private ServerStatus serverStatus;
+    private ClientInfoConverter clientInfoConverter;
+    private FileInfoConverter fileInfoConverter;
+    private FilePartConverter filePartConverter;
+    private TextMessageConverter textMessageConverter;
     private ClientInfoRepository clientInfoRepository;
     private FileInfoRepository fileInfoRepository;
     private FilePartRepository filePartRepository;
@@ -40,22 +49,24 @@ public class Server extends UnicastRemoteObject implements ServerInt {
         fileInfoRepository = ctx.getBean(FileInfoRepository.class);
         filePartRepository = ctx.getBean(FilePartRepository.class);
         textMessageRepository = ctx.getBean(TextMessageRepository.class);
+        clientInfoConverter = new ClientInfoConverter();
+        fileInfoConverter = new FileInfoConverter(clientInfoConverter);
+        filePartConverter = new FilePartConverter(clientInfoConverter, fileInfoConverter);
+        textMessageConverter = new TextMessageConverter(clientInfoConverter);
         serverStatus = ServerStatus.SERVER_STANDBY_FULL;
     }
 
     public String loginToServer(ClientInt clientInt) {
-        System.out.println("ddd");
-        ClientInfo clientInfo = null;
+        ClientInfoDTO clientInfoDTO = null;
         try {
-            clientInfo = clientInt.getClientInfoFromClient();
-            System.out.println(clientInfo);
+            clientInfoDTO = clientInt.getClientInfoFromClient();
+            System.out.println(clientInfoDTO);
         } catch (RemoteException e) {
             e.printStackTrace();
         }
-        System.out.println("mmm");
-        String login = "admin";
-        clientInfo.setLogin(login);
-        clientInfoRepository.save(clientInfo);
+        String login = "admin10";
+        clientInfoDTO.setLogin(login);
+        clientInfoRepository.save(clientInfoConverter.convertToEntity(clientInfoDTO));
         clientIntHashMap.put(login, clientInt);
         return login;
     }
@@ -73,30 +84,38 @@ public class Server extends UnicastRemoteObject implements ServerInt {
         }
     }
 
-    public boolean sendFileInfoToServer(String login, FileInfo fileInfo) {
+    public boolean sendFileInfoToServer(String login, FileInfoDTO fileInfoDTO) {
         if (clientIsLoggedIn(login)) {
+            FileInfo fileInfo = fileInfoConverter.convertToEntity(fileInfoDTO);
             fileInfo.setClient(clientInfoRepository.findByLogin(login));
             fileInfoRepository.save(fileInfo);
-            System.out.println(fileInfo);
+            System.out.println(fileInfoDTO);
             return true;
         } else {
             return false;
         }
     }
 
-    public boolean sendFilePartToServer(String login, FilePart filePart) {
+    public boolean sendFilePartToServer(String login, FilePartDTO filePartDTO) {
         if (clientIsLoggedIn(login)) {
             try {
-                File file = new File(filePart.getFileInfo().getName() + FILE_INPUT_DIRECTORY);
-                if (filePart.isFirst()) {
+                File file = new File(FILE_INPUT_DIRECTORY + filePartDTO.getFileInfoDTO().getName());
+                if (filePartDTO.isFirst()) {
                     file.createNewFile();
                 }
                 FileOutputStream out = new FileOutputStream(file, true);
-                out.write(filePart.getData(), 0, filePart.getLength());
+                out.write(filePartDTO.getData(), 0, filePartDTO.getLength());
                 out.flush();
                 out.close();
+                FilePart filePart = filePartConverter.convertToEntity(filePartDTO);
+                filePart.setClient(clientInfoRepository.findByLogin(login));
+                filePart.setFileInfo(fileInfoRepository
+                        .findByNameAndSizeAndClient(
+                                filePart.getFileInfo().getName(),
+                                filePart.getFileInfo().getSize(),
+                                clientInfoRepository.findByLogin(login)));
                 filePartRepository.save(filePart);
-                System.out.println(filePart);
+                System.out.println(filePartDTO);
             } catch (Exception e) {
                 e.printStackTrace();
                 return false;
@@ -138,29 +157,29 @@ public class Server extends UnicastRemoteObject implements ServerInt {
             File file = new File(filePathname);
             FileInputStream in = new FileInputStream(file);
 
-            FileInfo fileInfo = new FileInfo();
-            fileInfo.setName(filename);
-            fileInfo.setSize(file.length());
-            clientInt.sendFileInfoToClient(fileInfo);
+            FileInfoDTO fileInfoDTO = new FileInfoDTO();
+            fileInfoDTO.setName(filename);
+            fileInfoDTO.setSize(file.length());
+            clientInt.sendFileInfoToClient(fileInfoDTO);
 
             byte[] fileData = new byte[1024 * 1024];
             int fileLength = in.read(fileData);
             boolean step = true;
             while (fileLength > 0) {
                 System.out.println(fileLength);
-                FilePart filePart = new FilePart();
+                FilePartDTO filePartDTO = new FilePartDTO();
                 if (step) {
-                    filePart.setFirst(true);
+                    filePartDTO.setFirst(true);
                 } else {
-                    filePart.setFirst(false);
+                    filePartDTO.setFirst(false);
                     step = false;
                 }
-                filePart.setHashKey((long) fileData.hashCode());
-                filePart.setFileInfo(fileInfo);
-                filePart.setData(fileData);
-                filePart.setLength(fileLength);
-                filePart.setStatus(FilePartStatus.NOT_SENT);
-                System.out.println(clientInt.sendFilePartToClient(filePart));
+                filePartDTO.setHashKey((long) fileData.hashCode());
+                filePartDTO.setFileInfoDTO(fileInfoDTO);
+                filePartDTO.setData(fileData);
+                filePartDTO.setLength(fileLength);
+                filePartDTO.setStatus(FilePartStatus.NOT_SENT);
+                System.out.println(clientInt.sendFilePartToClient(filePartDTO));
                 // todo check for "true" from method sendFilePart()!!!!!!!!!!!!
                 fileLength = in.read(fileData);
             }

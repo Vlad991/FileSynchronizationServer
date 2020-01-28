@@ -1,8 +1,7 @@
 package com.filesynch.repository;
 
-import com.filesynch.dto.ClientInfo;
+import com.filesynch.entity.ClientInfo;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.stereotype.Component;
 import org.springframework.stereotype.Repository;
 
 @Repository
