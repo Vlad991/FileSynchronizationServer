@@ -18,6 +18,7 @@ import lombok.Getter;
 import lombok.Setter;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 
+import java.awt.*;
 import java.io.*;
 import java.rmi.RemoteException;
 import java.rmi.server.UnicastRemoteObject;
@@ -35,7 +36,7 @@ public class Server extends UnicastRemoteObject implements ServerInt {
     private FileInfoRepository fileInfoRepository;
     private FilePartRepository filePartRepository;
     private TextMessageRepository textMessageRepository;
-    private final int FILE_MULTIPLICITY = 10;
+    private final int FILE_PART_SIZE = 1; // in bytes (1 B)
     private final String FILE_INPUT_DIRECTORY = "src/main/resources/in/";
     private final String FILE_OUTPUT_DIRECTORY = "src/main/resources/out/";
     private HashMap<String, ClientInt> clientIntHashMap = new HashMap<>();
@@ -64,9 +65,14 @@ public class Server extends UnicastRemoteObject implements ServerInt {
         } catch (RemoteException e) {
             e.printStackTrace();
         }
-        String login = "admin10";
-        clientInfoDTO.setLogin(login);
-        clientInfoRepository.save(clientInfoConverter.convertToEntity(clientInfoDTO));
+        String login = null;
+        if (clientInfoDTO.getLogin() != null && clientInfoRepository.findByLogin(clientInfoDTO.getLogin()) != null) {
+            login = clientInfoDTO.getLogin();
+        } else {
+            login = "admin";
+            clientInfoDTO.setLogin(login);
+            clientInfoRepository.save(clientInfoConverter.convertToEntity(clientInfoDTO));
+        }
         clientIntHashMap.put(login, clientInt);
         return login;
     }
@@ -77,7 +83,7 @@ public class Server extends UnicastRemoteObject implements ServerInt {
             textMessage.setMessage(message);
             textMessage.setClient(clientInfoRepository.findByLogin(login));
             textMessageRepository.save(textMessage);
-            System.out.println(textMessage);
+            System.out.println(textMessage.getMessage());
             return "Message Received!";
         } else {
             return "You are not logged in!";
@@ -109,13 +115,15 @@ public class Server extends UnicastRemoteObject implements ServerInt {
                 out.close();
                 FilePart filePart = filePartConverter.convertToEntity(filePartDTO);
                 filePart.setClient(clientInfoRepository.findByLogin(login));
-                filePart.setFileInfo(fileInfoRepository
-                        .findByNameAndSizeAndClient(
-                                filePart.getFileInfo().getName(),
-                                filePart.getFileInfo().getSize(),
-                                clientInfoRepository.findByLogin(login)));
+                FileInfo fileInfo = fileInfoRepository.findByNameAndSizeAndClient(
+                        filePart.getFileInfo().getName(),
+                        filePart.getFileInfo().getSize(),
+                        clientInfoRepository.findByLogin(login));
+                if (fileInfo != null) {
+                    filePart.setFileInfo(fileInfo);
+                }
                 filePartRepository.save(filePart);
-                System.out.println(filePartDTO);
+                //System.out.println(filePartDTO);
             } catch (Exception e) {
                 e.printStackTrace();
                 return false;
@@ -128,7 +136,7 @@ public class Server extends UnicastRemoteObject implements ServerInt {
 
     // calls here
     public boolean sendTextMessageToClient(String login, String message) {
-        serverStatus = ServerStatus.SERVER_WORK;
+        setServerStatus(ServerStatus.SERVER_WORK);
         ClientInt clientInt = clientIntHashMap.get(login);
         if (clientInt == null) {
             System.out.println("Login not correct!");
@@ -145,8 +153,8 @@ public class Server extends UnicastRemoteObject implements ServerInt {
     }
 
     // this is cycle for sending file parts from client to server, it calls here
-    public boolean sendFileToClient(String login, String filename) throws RemoteException {
-        serverStatus = (ServerStatus.SERVER_WORK);
+    public boolean sendFileToClient(String login, String filename) {
+        setServerStatus(ServerStatus.SERVER_WORK);
         ClientInt clientInt = clientIntHashMap.get(login);
         if (clientInt == null) {
             System.out.println("Login not correct!");
@@ -160,9 +168,12 @@ public class Server extends UnicastRemoteObject implements ServerInt {
             FileInfoDTO fileInfoDTO = new FileInfoDTO();
             fileInfoDTO.setName(filename);
             fileInfoDTO.setSize(file.length());
+            ClientInfoDTO clientInfoDTO = clientInfoConverter
+                    .convertToDto(clientInfoRepository.findByLogin(login));
+            fileInfoDTO.setClient(clientInfoDTO);
             clientInt.sendFileInfoToClient(fileInfoDTO);
 
-            byte[] fileData = new byte[1024 * 1024];
+            byte[] fileData = new byte[FILE_PART_SIZE];
             int fileLength = in.read(fileData);
             boolean step = true;
             while (fileLength > 0) {
@@ -179,6 +190,7 @@ public class Server extends UnicastRemoteObject implements ServerInt {
                 filePartDTO.setData(fileData);
                 filePartDTO.setLength(fileLength);
                 filePartDTO.setStatus(FilePartStatus.NOT_SENT);
+                filePartDTO.setClient(clientInfoDTO);
                 System.out.println(clientInt.sendFilePartToClient(filePartDTO));
                 // todo check for "true" from method sendFilePart()!!!!!!!!!!!!
                 fileLength = in.read(fileData);
@@ -190,7 +202,7 @@ public class Server extends UnicastRemoteObject implements ServerInt {
         return true;
     }
 
-    public void start(int port) throws Exception {
+    public void start(int port) {
         // todo start server
     }
 
@@ -204,5 +216,9 @@ public class Server extends UnicastRemoteObject implements ServerInt {
             return false;
         }
         return true;
+    }
+
+    private void setServerStatus(ServerStatus status) {
+        serverStatus = status;
     }
 }
