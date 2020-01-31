@@ -17,7 +17,7 @@ public class FilePartDTO implements Serializable {
     private Long hashKey;
     private FileInfoDTO fileInfoDTO;
     private FilePartStatus status;
-    private boolean isFirst;
+    private int order;
     private byte[] data;
     private int length;
     private ClientInfoDTO client;

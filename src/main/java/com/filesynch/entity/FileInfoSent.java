@@ -7,15 +7,14 @@ import lombok.ToString;
 import org.hibernate.annotations.GenericGenerator;
 
 import javax.persistence.*;
-import java.io.Serializable;
 
 @Getter
 @Setter
 @NoArgsConstructor
 @ToString
 @Entity
-@Table(name = "file_info")
-public class FileInfo {
+@Table(name = "file_info_sent")
+public class FileInfoSent {
     @Id
     @GeneratedValue(generator="increment")
     @GenericGenerator(name="increment", strategy = "increment")

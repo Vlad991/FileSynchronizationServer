@@ -1,33 +1,34 @@
 package com.filesynch.converter;
 
 import com.filesynch.dto.FilePartDTO;
-import com.filesynch.entity.FilePart;
+import com.filesynch.entity.FileInfoReceived;
+import com.filesynch.entity.FilePartReceived;
 
-public class FilePartConverter {
+public class FilePartReceivedConverter {
     private ClientInfoConverter clientInfoConverter;
-    private FileInfoConverter fileInfoConverter;
+    private FileInfoReceivedConverter fileInfoConverter;
 
-    public FilePartConverter(ClientInfoConverter clientInfoConverter, FileInfoConverter fileInfoConverter) {
+    public FilePartReceivedConverter(ClientInfoConverter clientInfoConverter, FileInfoReceivedConverter fileInfoConverter) {
         this.clientInfoConverter = clientInfoConverter;
         this.fileInfoConverter = fileInfoConverter;
     }
 
-    public FilePartDTO convertToDto(FilePart filePart) {
+    public FilePartDTO convertToDto(FilePartReceived filePart) {
         FilePartDTO filePartDTO = new FilePartDTO();
         filePartDTO.setHashKey(filePart.getHashKey());
         filePartDTO.setClient(clientInfoConverter.convertToDto(filePart.getClient()));
         filePartDTO.setFileInfoDTO(fileInfoConverter.convertToDto(filePart.getFileInfo()));
-        filePartDTO.setFirst(filePart.isFirst());
+        filePartDTO.setOrder(filePart.getOrder());
         filePartDTO.setStatus(filePart.getStatus());
         return filePartDTO;
     }
 
-    public FilePart convertToEntity(FilePartDTO filePartDTO) {
-        FilePart filePart = new FilePart();
+    public FilePartReceived convertToEntity(FilePartDTO filePartDTO) {
+        FilePartReceived filePart = new FilePartReceived();
         filePart.setHashKey(filePartDTO.getHashKey());
         filePart.setClient(clientInfoConverter.convertToEntity(filePartDTO.getClient()));
         filePart.setFileInfo(fileInfoConverter.convertToEntity(filePartDTO.getFileInfoDTO()));
-        filePart.setFirst(filePartDTO.isFirst());
+        filePart.setOrder(filePartDTO.getOrder());
         filePart.setStatus(filePartDTO.getStatus());
         return filePart;
     }
