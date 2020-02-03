@@ -2,8 +2,7 @@ package com.filesynch.dto;
 
 public enum FilePartStatus {
     NOT_SENT("NOT_SENT"),
-    SENT_WITHOUT_NOTICE("SENT_WITHOUT_NOTICE"), // file came to receiver, but sender not notified
-    SENT("SENT"); //
+    SENT("SENT");
 
     private String status;
 

@@ -290,7 +290,7 @@
                       <text value="SERVER_STANDBY_FULL"/>
                     </properties>
                   </component>
-                  <component id="28a94" class="javax.swing.JButton" binding="jButtonStartServer">
+                  <component id="28a94" class="javax.swing.JButton" binding="jButtonStartServer" custom-create="true">
                     <constraints>
                       <grid row="2" column="1" row-span="1" col-span="1" vsize-policy="0" hsize-policy="3" anchor="0" fill="1" indent="0" use-parent-layout="false"/>
                     </constraints>

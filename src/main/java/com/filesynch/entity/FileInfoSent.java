@@ -1,5 +1,6 @@
 package com.filesynch.entity;
 
+import com.filesynch.dto.FileStatus;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -23,6 +24,8 @@ public class FileInfoSent {
     private String name;
     @Column(name = "size")
     private long size; // in bytes
+    @Column(name = "status")
+    private FileStatus fileStatus;
     @ManyToOne
     @JoinColumn(name = "client_id")
     private ClientInfo client;

@@ -13,9 +13,14 @@ import org.springframework.context.annotation.AnnotationConfigApplicationContext
 
 import javax.swing.*;
 import java.io.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.rmi.RemoteException;
 import java.rmi.server.UnicastRemoteObject;
-import java.util.HashMap;
+import java.util.*;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class Server extends UnicastRemoteObject implements ServerInt {
     @Getter
@@ -99,7 +104,7 @@ public class Server extends UnicastRemoteObject implements ServerInt {
         clientIntHashMap.put(login, clientInt);
         Main.updateClientList();
         File directory = new File(FILE_INPUT_DIRECTORY + login);
-        if (! directory.exists()){
+        if (!directory.exists()) {
             directory.mkdir();
         }
         return login;
@@ -183,7 +188,7 @@ public class Server extends UnicastRemoteObject implements ServerInt {
     }
 
     // this is cycle for sending file parts from client to server, it calls here
-    public boolean sendFileToClient(String login, String filename) {
+    public boolean sendFileToClientFast(String login, String filename) {
         setServerStatus(ServerStatus.SERVER_WORK);
         ClientInt clientInt = clientIntHashMap.get(login);
         if (clientInt == null) {
@@ -199,13 +204,13 @@ public class Server extends UnicastRemoteObject implements ServerInt {
             fileInfoDTO.setName(filename);
             fileInfoDTO.setSize(file.length());
             ClientInfo clientInfo = clientInfoRepository.findByLogin(login);
-            ClientInfoDTO clientInfoDTO = clientInfoConverter
-                    .convertToDto(clientInfo);
+            ClientInfoDTO clientInfoDTO = clientInfoConverter.convertToDto(clientInfo);
             fileInfoDTO.setClient(clientInfoDTO);
             clientInt.sendFileInfoToClient(fileInfoDTO);
             FileInfoSent fileInfo = fileInfoSentConverter.convertToEntity(fileInfoDTO);
             fileInfo.setClient(clientInfo);
             fileInfo = fileInfoSentRepository.save(fileInfo);
+            Main.updateFileQueue();
 
             byte[] fileData = new byte[FILE_PART_SIZE];
             int fileLength = in.read(fileData);
@@ -243,6 +248,202 @@ public class Server extends UnicastRemoteObject implements ServerInt {
         }
         return true;
     }
+
+    public boolean sendAllFilesToClient(String login) {
+        setServerStatus(ServerStatus.SERVER_WORK);
+        ClientInt clientInt = clientIntHashMap.get(login);
+        if (clientInt == null) {
+            logger.log("Login not correct");
+            return false;
+        }
+        try (Stream<Path> walk = Files.walk(Paths.get(FILE_OUTPUT_DIRECTORY
+                .substring(0, FILE_OUTPUT_DIRECTORY.length() - 1)))) {
+            List<String> filePathNames = walk.filter(Files::isRegularFile)
+                    .map(x -> x.toString()).collect(Collectors.toList());
+            for (String filePath : filePathNames) {
+                boolean result = sendFileToClient(login, filePath.replace(FILE_OUTPUT_DIRECTORY, ""));
+                if (!result) {
+                    return false;
+                }
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+            return false;
+        }
+        return true;
+    }
+
+    public boolean sendFileToClient(String login, String filename) {
+        setServerStatus(ServerStatus.SERVER_WORK);
+        ClientInt clientInt = clientIntHashMap.get(login);
+        if (clientInt == null) {
+            logger.log("Login not correct");
+            return false;
+        }
+        File file = new File(FILE_OUTPUT_DIRECTORY + filename);
+        if (!file.exists()) {
+            logger.log("File " + filename + " not exists");
+            return false;
+        }
+        LinkedHashMap<Integer, FilePartDTO> filePartHashMap = new LinkedHashMap<>();
+        FileInfoSent fileInfo = null;
+        FileInfoDTO fileInfoDTO = null;
+        try {
+            FileInputStream in = new FileInputStream(file);
+            fileInfo = fileInfoSentRepository
+                    .findByNameAndSizeAndClient_Login(filename, file.length(), login);
+            if (fileInfo == null) {
+                fileInfoDTO = new FileInfoDTO();
+                fileInfoDTO.setName(filename);
+                fileInfoDTO.setSize(file.length());
+                ClientInfo clientInfo = clientInfoRepository.findByLogin(login);
+                ClientInfoDTO clientInfoDTO = clientInfoConverter.convertToDto(clientInfo);
+                fileInfoDTO.setClient(clientInfoDTO);
+                fileInfo = fileInfoSentConverter.convertToEntity(fileInfoDTO);
+                fileInfo.setClient(clientInfo);
+                fileInfo.setFileStatus(FileStatus.NOT_TRANSFERRED);
+                fileInfoSentRepository.save(fileInfo);
+                Main.updateFileQueue();
+            }
+            fileInfoDTO = fileInfoSentConverter.convertToDto(fileInfo);
+            ClientInfo clientInfo = clientInfoRepository.findByLogin(login);
+            ClientInfoDTO clientInfoDTO = clientInfoConverter.convertToDto(clientInfo);
+
+            byte[] fileData = new byte[FILE_PART_SIZE];
+            int fileLength = in.read(fileData);
+            int step = 1;
+            while (fileLength > 0) {
+                FilePartDTO filePartDTO = new FilePartDTO();
+                filePartDTO.setOrder(step);
+                step++;
+                filePartDTO.setFileInfoDTO(fileInfoDTO);
+                filePartDTO.setData(fileData);
+                filePartDTO.setLength(fileLength);
+                filePartDTO.setStatus(FilePartStatus.NOT_SENT);
+                filePartDTO.setClient(clientInfoDTO);
+                filePartDTO.setHashKey((long) filePartDTO.hashCode());
+                filePartHashMap.put(step, filePartDTO);
+                fileLength = in.read(fileData);
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        switch (fileInfo.getFileStatus()) {
+            case NOT_TRANSFERRED:
+                filePartSentRepository.deleteAllByClient_LoginAndFileInfo_Id(login, fileInfo.getId());
+                filePartHashMap.forEach((order, filePartDTO) -> {
+                    filePartSentRepository.save(filePartSentConverter.convertToEntity(filePartDTO));
+                });
+                return sendAllFilePartsToClient(filePartHashMap, fileInfoDTO, clientInt);
+            case TRANSFER_PROCESS:
+                return sendAllFilePartsToClient(filePartHashMap, fileInfoDTO, clientInt);
+            case TRANSFERRED:
+                return true;
+        }
+        Main.updateFileQueue();
+        return true;
+    }
+
+    private boolean sendAllFilePartsToClient(LinkedHashMap<Integer, FilePartDTO> filePartHashMap,
+                                             FileInfoDTO fileInfoDTO,
+                                             ClientInt clientInt) {
+        FileInfoSent fileInfo = fileInfoSentRepository
+                .findByNameAndSizeAndClient_Login(
+                        fileInfoDTO.getName(),
+                        fileInfoDTO.getSize(),
+                        fileInfoDTO.getClient().getLogin());
+        fileInfo.setFileStatus(FileStatus.TRANSFER_PROCESS);
+        fileInfo = fileInfoSentRepository.save(fileInfo);
+        List<FilePartSent> filePartList = filePartSentRepository.findAllByFileInfo(fileInfo);
+        Collections.sort(filePartList, new Comparator<FilePartSent>() {
+            public int compare(FilePartSent o1, FilePartSent o2) {
+                return Integer.compare(o1.getOrder(), o2.getOrder());
+            }
+        });
+        FilePartSent firstNotSentFilePart = filePartList.stream()
+                .filter(fp -> (fp.getStatus() == FilePartStatus.NOT_SENT))
+                .findFirst()
+                .get();
+        FilePartDTO firstNotSentFilePartDTOFromClient = null;
+        try {
+            firstNotSentFilePartDTOFromClient =
+                    clientInt.getFirstNotSentFilePartFromClient(fileInfoDTO);
+        } catch (RemoteException e) {
+            e.printStackTrace();
+            return false;
+        }
+        FilePartSent firstNotSentFilePartFromClient =
+                filePartSentConverter.convertToEntity(firstNotSentFilePartDTOFromClient);
+        if (firstNotSentFilePart.getOrder() != firstNotSentFilePartFromClient.getOrder()) {
+            if (firstNotSentFilePart.getOrder() > firstNotSentFilePartFromClient.getOrder()) {
+                for (FilePartSent fp : filePartList) {
+                    if (fp.getOrder() == (firstNotSentFilePart.getOrder() - 1)) {
+                        fp.setStatus(FilePartStatus.NOT_SENT);
+                        break;
+                    }
+                }
+            } else {
+                firstNotSentFilePart.setStatus(FilePartStatus.SENT);
+            }
+            sendAllFilePartsToClient(filePartHashMap, fileInfoDTO, clientInt);
+        } else {
+            fileProgressBar.setMinimum(0);
+            fileProgressBar.setMaximum((int) fileInfoDTO.getSize());
+            int progressValue = 0;
+            for (int i = firstNotSentFilePart.getOrder(); i <= filePartHashMap.size(); i++) {
+                try {
+                    FilePartDTO filePartDTOToSend = filePartHashMap.get(i);
+                    FilePartSent filePartToSend = filePartList.get(i - 1);
+                    String filePathname = FILE_OUTPUT_DIRECTORY + filePartToSend.getFileInfo().getName();
+                    File file = new File(filePathname);
+                    FileInputStream in = new FileInputStream(file);
+                    byte[] fileData = new byte[FILE_PART_SIZE];
+                    int fileLength = in.read(fileData);
+
+                    sendFilePartToClient(filePartDTOToSend, clientInt);
+
+                    filePartToSend.setStatus(FilePartStatus.SENT);
+                    filePartSentRepository.save(filePartToSend);
+                    progressValue += FILE_PART_SIZE;
+                    fileProgressBar.setValue(progressValue);
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    return false; //todo? (break)
+                }
+            }
+        }
+        return true;
+    }
+
+    private boolean sendFilePartToClient(FilePartDTO filePartDTO, ClientInt clientInt) {
+        boolean result = false;
+        try {
+            result = clientInt.sendFilePartToClient(filePartDTO);
+            Thread.sleep(2000);
+        } catch (InterruptedException | RemoteException e) {
+            e.printStackTrace();
+            return false;
+        }
+        logger.log(String.valueOf(result));
+        if (result) {
+            FilePartSent filePartSent = filePartSentRepository.findByHashKey(filePartDTO.getHashKey());
+            filePartSent.setStatus(FilePartStatus.SENT);
+            filePartSentRepository.save(filePartSent);
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    // calls here
+//    public boolean sendCommandToClient(Command command) {
+//        switch (command) {
+//            case CONTINUE_SENDING:
+//
+//                break;
+//        }
+//    }
 
     private boolean clientIsLoggedIn(String login) {
         ClientInfo client = clientInfoRepository.findByLogin(login);

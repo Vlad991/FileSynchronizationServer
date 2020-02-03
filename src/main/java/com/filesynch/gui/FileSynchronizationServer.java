@@ -70,15 +70,6 @@ public class FileSynchronizationServer {
     private JList jListQueueReceiving;
 
     public FileSynchronizationServer() {
-        jButtonStartServer.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                Main.startServer(1099, "fs");
-                Main.server.setServerStatus(ServerStatus.SERVER_WORK);
-                jLabelServerStatusValue.setText(ServerStatus.SERVER_WORK.getStatus());
-                jLabelServerStatusValue.setForeground(Color.GREEN);
-            }
-        });
         jButtonStopServer.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
@@ -86,6 +77,15 @@ public class FileSynchronizationServer {
                 Main.server.setServerStatus(ServerStatus.SERVER_STANDBY_FULL);
                 jLabelServerStatusValue.setText(ServerStatus.SERVER_STANDBY_FULL.getStatus());
                 jLabelServerStatusValue.setForeground(Color.RED);
+            }
+        });
+        jButtonStartServer.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                Main.startServer(1099, "fs");
+                Main.server.setServerStatus(ServerStatus.SERVER_WORK);
+                jLabelServerStatusValue.setText(ServerStatus.SERVER_WORK.getStatus());
+                jLabelServerStatusValue.setForeground(Color.GREEN);
             }
         });
         jListClientList.addListSelectionListener(new ListSelectionListener() {

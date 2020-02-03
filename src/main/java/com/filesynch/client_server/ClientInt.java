@@ -13,5 +13,6 @@ public interface ClientInt extends Remote {
     public void sendTextMessageToClient(String message) throws RemoteException;
     public boolean sendCommandToClient(String command) throws RemoteException; // TODO send command but receive smth
     public boolean sendFileInfoToClient(FileInfoDTO fileInfoDTO) throws RemoteException;
+    public FilePartDTO getFirstNotSentFilePartFromClient(FileInfoDTO fileInfoDTO) throws RemoteException;
     public boolean sendFilePartToClient(FilePartDTO filePartDTO) throws RemoteException; // cycle for sending all file parts is on Server (class)
 }
